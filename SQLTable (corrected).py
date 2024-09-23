@@ -958,6 +958,21 @@ class SQLTable:
         else:
             print("Полнотекстовый индекс отсутствует, поиск невозможен.")
 
+    def dataframe_to_json_objects(df):
+        """
+        Преобразует каждую строку датафрейма в отдельный объект JSON.
+
+        :param df: pandas DataFrame для преобразования
+        :return: список строк в формате JSON
+        """
+        # Преобразуем строки DataFrame в список словарей
+        records = df.to_dict(orient='records')
+
+        # Преобразуем каждый словарь в строку JSON
+        json_objects = [json.dumps(record) for record in records]
+
+        return json_objects
+
     def __del__(self):
         """
         Destructor to ensure that the cursor and connection are closed.
@@ -985,7 +1000,7 @@ if __name__ == "__main__":
     }
     mwj = SQLTable(db_config, "mwj_combined")
     columns = ["title", "abstract"]
-    keyword = "electronic warfare"
+    keyword = "K-band"
     mwj.search_fulltext(columns, keyword)
 
 

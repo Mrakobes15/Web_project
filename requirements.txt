@@ -7,4 +7,3 @@ nltk
 pymystem3
 matplotlib
 numpy
-re
