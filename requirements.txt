@@ -1,0 +1,10 @@
+pandas
+requests
+bs4
+PyPDF2
+openpyxl
+nltk
+pymystem3
+matplotlib
+numpy
+re
