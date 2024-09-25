@@ -2,6 +2,7 @@ import mysql.connector
 import pandas as pd
 import os
 import datetime
+import json
 pd.set_option('display.max_rows', None)
 pd.set_option('display.width', None)
 
@@ -958,13 +959,18 @@ class SQLTable:
         else:
             print("Полнотекстовый индекс отсутствует, поиск невозможен.")
 
-    def dataframe_to_json_objects(df):
+    def fetch_all_as_json(self):
         """
-        Преобразует каждую строку датафрейма в отдельный объект JSON.
+        Извлекает все данные из таблицы и преобразует их в список объектов JSON.
 
-        :param df: pandas DataFrame для преобразования
-        :return: список строк в формате JSON
+        :return: Список строк в формате JSON
         """
+        # SQL запрос для получения всех данных из таблицы
+        query = f"SELECT * FROM {self.table_name}"
+
+        # Выполняем запрос и получаем результат в виде Pandas DataFrame
+        df = self._execute_query(query)
+
         # Преобразуем строки DataFrame в список словарей
         records = df.to_dict(orient='records')
 
@@ -972,6 +978,103 @@ class SQLTable:
         json_objects = [json.dumps(record) for record in records]
 
         return json_objects
+
+    def fetch_filtered_as_json(self, where_clause='', columns='*'):
+        """
+        Извлекает данные из таблицы на основе условия и преобразует их в список объектов JSON.
+
+        :param where_clause: Условие для SQL-запроса (например, 'WHERE age > 30').
+        :param columns: Список колонок для выборки (например, 'name, age'), по умолчанию '*'.
+        :return: Список строк в формате JSON.
+        """
+        # Формируем SQL запрос с учетом фильтра (where_clause)
+        query = f"SELECT {columns} FROM {self.table_name} {where_clause}"
+
+        # Выполняем запрос и получаем результат в виде DataFrame
+        df = self._execute_query(query)
+
+        # Преобразуем строки DataFrame в список словарей
+        records = df.to_dict(orient='records')
+
+        # Преобразуем каждый словарь в строку JSON
+        json_objects = [json.dumps(record) for record in records]
+
+        return json_objects
+
+    def insert_json_objects_as_string(self, json_objects, column_name):
+        """
+        Вставляет каждый JSON объект целиком в одну ячейку указанного столбца таблицы.
+
+        :param json_objects: Список JSON объектов для загрузки.
+        :param column_name: Название столбца, в который нужно загрузить данные.
+        """
+        # SQL запрос для вставки данных в таблицу
+        query = f"INSERT INTO {self.table_name} ({column_name}) VALUES (%s)"
+
+        # Подключаемся к базе данных и вставляем данные
+        cursor = self.connection.cursor()
+        try:
+            for json_object in json_objects:
+                # Преобразуем JSON объект в строку, если это не строка
+                if isinstance(json_object, dict):
+                    json_str = json.dumps(json_object)  # Преобразование Python словаря в строку JSON
+                else:
+                    json_str = json_object  # Если это уже строка, используем как есть
+
+                # Вставляем JSON строку в базу данных
+                cursor.execute(query, (json_str,))
+            self.connection.commit()
+        finally:
+            cursor.close()
+
+    def update_columns_from_json(self, json_column, id_column, columns_to_extract):
+        """
+        Считывает JSON объекты из указанного столбца, извлекает значения для указанных колонок,
+        и обновляет таблицу на основе ID, устанавливая новые значения для этих колонок.
+
+        :param json_column: Название столбца, из которого будут извлекаться JSON объекты.
+        :param id_column: Название столбца, содержащего уникальный идентификатор (например, 'id').
+        :param columns_to_extract: Список колонок, значения которых нужно извлечь из JSON объектов.
+        """
+        # 1. Считать все записи из таблицы, включая JSON объекты и идентификатор
+        query = f"SELECT {id_column}, {json_column} FROM {self.table_name}"
+        rows = self._execute_query(query)
+
+        # 2. Подготовить запрос для обновления значений
+        set_clause = ', '.join([f"{col} = %s" for col in columns_to_extract])
+        update_query = f"UPDATE {self.table_name} SET {set_clause} WHERE {id_column} = %s"
+
+        cursor = self.connection.cursor()
+
+        try:
+            for row in rows.itertuples(index=False):
+                record_id = getattr(row, id_column)
+                json_data = getattr(row, json_column)
+
+                try:
+                    # 3. Преобразовать JSON строку в Python объект
+                    json_obj = json.loads(json_data)
+                except json.JSONDecodeError:
+                    print(f"Ошибка декодирования JSON для записи с ID {record_id}")
+                    continue
+
+                # 4. Извлечь значения для указанных колонок
+                values_to_update = [json_obj.get(col) for col in columns_to_extract]
+
+                if None in values_to_update:
+                    print(f"Не все данные найдены для записи с ID {record_id}, пропускаем.")
+                    continue
+
+                # 5. Выполнить обновление таблицы
+                cursor.execute(update_query, (*values_to_update, record_id))
+
+            # 6. Зафиксировать изменения в базе данных
+            self.connection.commit()
+        except Exception as e:
+            self.connection.rollback()
+            print(f"Ошибка при обновлении данных: {e}")
+        finally:
+            cursor.close()
 
     def __del__(self):
         """
@@ -1000,8 +1103,12 @@ if __name__ == "__main__":
     }
     mwj = SQLTable(db_config, "mwj_combined")
     columns = ["title", "abstract"]
-    keyword = "K-band"
-    mwj.search_fulltext(columns, keyword)
+    keyword = "million dollar contract"
+    homepage = SQLTable(db_config, "homepage_proper")
+
+    #homepage.insert_json_objects_as_string(mwj.fetch_all_as_json(),"Info")
+    homepage.update_columns_from_json("Info","id", ["title", "abstract"])
+    homepage.print_table_info()
 
 
 
