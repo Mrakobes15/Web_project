@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import datetime
 import json
+import keyword_handling as kwd
 pd.set_option('display.max_rows', None)
 pd.set_option('display.width', None)
 
@@ -1076,6 +1077,24 @@ class SQLTable:
         finally:
             cursor.close()
 
+    def push_list(self, tags_list, column):
+        """
+        Pushes a list of tags into the tags table.
+
+        :param tags_list: List of tags (strings) to insert into the table.
+        """
+        # Проход по списку тегов
+        for tag in tags_list:
+            # Проверка, существует ли уже такой тег в таблице
+            existing_tag_df = self.select_where(f"WHERE '{column}' = '{tag}'")
+
+            if existing_tag_df.empty:
+                # Если тега нет, вставляем новый тег
+                self.insert_row({f'{column}': tag})
+            else:
+                # Если тег уже существует, пропускаем или можно обновить (если нужно)
+                print(f"Tag '{column}' already exists, skipping.")
+
     def __del__(self):
         """
         Destructor to ensure that the cursor and connection are closed.
@@ -1094,21 +1113,6 @@ class SQLTable:
 
 
 # Example usage:
-if __name__ == "__main__":
-    db_config = {
-        'user': 'j1498375',
-        'password': 'b5f!g9Lemsyh',
-        'host': 'srv48-h-st.jino.ru',
-        'database': 'j1498375_test1'
-    }
-    mwj = SQLTable(db_config, "mwj_combined")
-    columns = ["title", "abstract"]
-    keyword = "million dollar contract"
-    homepage = SQLTable(db_config, "homepage_proper")
-
-    #homepage.insert_json_objects_as_string(mwj.fetch_all_as_json(),"Info")
-    homepage.update_columns_from_json("Info","id", ["title", "abstract"])
-    homepage.print_table_info()
 
 
 

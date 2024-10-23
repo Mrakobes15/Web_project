@@ -5,13 +5,13 @@ from openpyxl import Workbook
 from os import path, mkdir
 import numpy as np
 import matplotlib.pyplot as plt
-from progress.bar import Bar
+
 import re
-import cloud
+"""import cloud
 import main
 import my_tags
 import sqlite3
-
+"""
 
 def check_doubles_mwj(table_name: str, column: str, title: str):
     db_connection = sqlite3.connect('MWJ.db')
