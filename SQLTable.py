@@ -1095,6 +1095,73 @@ class SQLTable:
                 # Если тег уже существует, пропускаем или можно обновить (если нужно)
                 print(f"Tag '{column}' already exists, skipping.")
 
+    def execute_update(self, query, params):
+        """Пакетное обновление в таблице."""
+        self.cursor.executemany(query, params)
+        self.connection.commit()
+
+    def update_keyword_counts(self, keywords_table, articles_table):
+        """
+        Подсчитывает вхождения ключевых слов в данных из статей и обновляет таблицу ключевых слов.
+
+        :param keywords_table: Объект SQLTable для работы с таблицей ключевых слов.
+        :param articles_table: Объект SQLTable для работы с таблицей статей.
+        """
+        try:
+            # Шаг 1: Извлечение всех ключевых слов из таблицы keywords
+            keywords = keywords_table.fetch_all()  # Получаем все ключевые слова
+            if keywords.empty:
+                print("No keywords found.")
+                return
+
+            # Шаг 2: Формируем запросы для поиска вхождений ключевых слов в таблице js_final
+            keyword_counts = []
+
+            # Шаг 2: Формируем запросы для поиска вхождений ключевых слов в таблице js_final
+            keyword_counts = []
+
+            for _, row in keywords.iterrows():
+                keyword_id = row['id']
+                keyword_text = row['keyword']
+
+                # Полнотекстовый поиск для подсчета вхождений
+                query = f"""
+                    SELECT COUNT(*) AS count
+                    FROM {articles_table.table_name}
+                    WHERE MATCH(info) AGAINST(%s IN NATURAL LANGUAGE MODE);
+                    """
+                self.cursor.execute(query, (keyword_text,))
+                result = self.cursor.fetchone()
+
+                # Если result возвращает кортеж, доступ к значению через индекс
+                count = result[0] if result else 0  # Индекс 0 для получения значения COUNT(*)
+
+                # Логируем значение, которое будет обновлено
+                print(f"Keyword ID: {keyword_id}, Count: {count}")
+
+                keyword_counts.append((count, keyword_id))
+
+            # Логируем список значений перед обновлением
+            print("Keyword counts to update:", keyword_counts)
+
+            # Шаг 3: Пакетное обновление таблицы keywords
+            update_query = "UPDATE keywords SET count = %s WHERE id = %s"
+            keywords_table.execute_update(update_query, keyword_counts)
+
+            # Явный коммит изменений
+            self.connection.commit()
+
+            # Проверка, сколько строк обновлено
+            self.cursor.execute("SELECT ROW_COUNT()")
+            updated_rows = self.cursor.fetchone()[0]
+            print(f"Rows updated: {updated_rows}")
+
+            print(f"Updated counts for {len(keyword_counts)} keywords.")
+
+        except mysql.connector.Error as err:
+            print(f"Error: {err}")
+            self.connection.rollback()
+
     def __del__(self):
         """
         Destructor to ensure that the cursor and connection are closed.

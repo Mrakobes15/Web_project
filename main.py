@@ -1,5 +1,5 @@
 import keyword_handling as kwd
-
+import SQLTable as S
 
 
 if __name__ == "__main__":
@@ -9,7 +9,14 @@ if __name__ == "__main__":
         'host': 'srv48-h-st.jino.ru',
         'database': 'j1498375_test1'
     }
-    kwd.process_keywords_in_articles(db_config,"homepage_proper","keywords","keyword_associations")
+
+    keywords_table = S.SQLTable(db_config, "keywords")
+    articles_table = S.SQLTable(db_config, "js_final")
+
+    #print(keywords_table.fetch_all())
+    # Подсчитываем вхождения ключевых слов
+    keywords_table.update_keyword_counts(keywords_table, articles_table)
+    #kwd.process_keywords_in_articles(db_config,"homepage_proper","keywords","keyword_associations")
     #homepage.insert_json_objects_as_string(mwj.fetch_all_as_json(),"Info")
     #homepage.update_columns_from_json("Info","id", ["title", "abstract"])
     #homepage.print_table_info()
